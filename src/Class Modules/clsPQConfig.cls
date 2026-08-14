@@ -1,7 +1,5 @@
 Option Explicit
 
-Option Explicit
-
 ' =========================================================
 ' CLASSE: clsPQConfig
 ' OBJETIVO: Gerenciar variáveis em uma consulta do Power Query via código M
