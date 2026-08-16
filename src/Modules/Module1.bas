@@ -6,7 +6,7 @@ Sub TestarClassePQ()
     
     ' Verifica se a consulta base existe, se não, cria.
     If Not db.Existe Then
-        db.InicializarConsulta
+        db.Inicializar
         MsgBox "Consulta criada. Adicione suas variáveis no Power Query e rode novamente!"
         Exit Sub
     End If
@@ -130,5 +130,24 @@ Sub TestarControlesDeEstado()
     End If
     
     ' 2. (Opcional) Descomente a linha abaixo para testar o Reset
-    ' db.LimparTudo
+    db.LimparTudo
 End Sub
+
+
+Sub TestarPerfisDeAmbiente()
+    Dim db As New clsPQConfig
+    Dim sucesso As Boolean
+    
+    ' EXEMPLO 1: Criando um Snapshot/Backup das variáveis atuais
+    'sucesso = db.Clonar("Variaveis", "Variaveis_BKP", Sobrescrever:=True)
+    
+    If sucesso Then
+        MsgBox "Backup criado com sucesso! Olhe no painel do Power Query.", vbInformation
+    End If
+    
+    ' EXEMPLO 2: O "Rollback" (Restaurando o ambiente)
+    ' Digamos que você bagunçou a consulta "Variaveis". Basta jogar o BKP por cima dela!
+    db.Clonar "Variaveis_BKP", "Variaveis", Sobrescrever:=True
+End Sub
+
+

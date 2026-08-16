@@ -57,7 +57,7 @@ End Property
 ' ---------------------------------------------------------
 ' 3. MÉTODOS DE INFRAESTRUTURA
 ' ---------------------------------------------------------
-Public Sub InicializarConsulta()
+Public Sub Inicializar()
     Dim codigoBase As String
     
     ' Se a consulta já existir, aborta para não sobrescrever
@@ -164,7 +164,7 @@ Public Sub DefinirVarios(ByVal DictVariaveis As Object)
     Dim regex As Object, chave As Variant
     
     If DictVariaveis Is Nothing Then Exit Sub
-    If Not Me.Existe Then Me.InicializarConsulta
+    If Not Me.Existe Then Me.Inicializar
     strM = Me.CodigoMAtual
     
     Set regex = CreateObject("VBScript.RegExp")
@@ -458,3 +458,50 @@ Public Sub LimparTudo()
     ' Feedback opcional via Debug
     Debug.Print "Consulta [" & p_QueryName & "] resetada com sucesso."
 End Sub
+
+' ---------------------------------------------------------
+' 9. UTILITÁRIOS: Clonar Consulta (Snapshots e Ambientes)
+' ---------------------------------------------------------
+Public Function Clonar(ByVal NomeOrigem As String, ByVal NomeNovo As String, Optional ByVal Sobrescrever As Boolean = False) As Boolean
+    Dim qryOrigem As WorkbookQuery
+    Dim qryDestino As WorkbookQuery
+    Dim codigoM As String
+    
+    ' 1. Tenta capturar a consulta de origem
+    On Error Resume Next
+    Set qryOrigem = p_wb.Queries(NomeOrigem)
+    On Error GoTo 0
+    
+    ' Se a origem não existir, aborta e retorna Falso
+    If qryOrigem Is Nothing Then
+        Clonar = False
+        Exit Function
+    End If
+    
+    ' Extrai a matriz inteira de código M da origem
+    codigoM = qryOrigem.Formula
+    
+    ' 2. Verifica se o destino (o clone) já existe
+    On Error Resume Next
+    Set qryDestino = p_wb.Queries(NomeNovo)
+    On Error GoTo 0
+    
+    If Not qryDestino Is Nothing Then
+        ' O destino já existe. Verifica se o usuário permitiu sobrescrever
+        If Sobrescrever Then
+            ' Em vez de deletar e recriar (o que quebraria conexões), nós injetamos o código M por cima
+            qryDestino.Formula = codigoM
+            Clonar = True
+        Else
+            ' Trava de segurança: Aborta para não esmagar uma consulta existente
+            Err.Raise vbObjectError + 2, "clsPQConfig", "A consulta '" & NomeNovo & "' já existe. Use Sobrescrever:=True para substituí-la."
+            Clonar = False
+        End If
+    Else
+        ' O destino não existe, então criamos uma consulta nova do zero
+        p_wb.Queries.Add Name:=NomeNovo, Formula:=codigoM
+        Clonar = True
+    End If
+End Function
+
+
