@@ -75,111 +75,46 @@ End Sub
 
 
 ' ---------------------------------------------------------
-' 4. MÉTODOS DE DADOS (CRUD - Leitura)
+' 4. LER VALOR (Agora com suporte a Datas)
 ' ---------------------------------------------------------
 Public Function LerValor(ByVal chave As String) As Variant
-    Dim strM As String
-    Dim regex As Object
-    Dim matches As Object
-    Dim valorBruto As String
-    
+    Dim strM As String, regex As Object, matches As Object
     strM = Me.CodigoMAtual
+    If strM = "" Then Exit Function
     
-    ' Se a consulta não existir ou estiver vazia, retorna nulo
-    If strM = "" Then
-        LerValor = Empty
-        Exit Function
-    End If
-    
-    ' Inicializa o motor RegEx via Late Binding (não requer ativar referências)
     Set regex = CreateObject("VBScript.RegExp")
     With regex
         .Global = False
         .IgnoreCase = True
         .Multiline = True
-        
-        ' PADRÃO REGEX: Busca o nome da chave, o sinal de igual e captura tudo até achar uma vírgula ou quebra de linha
-        .Pattern = chave & "\s*=\s*(.*?)(?:,|\r|\n|$)"
+        ' Lê até o fim da linha, ignorando vírgulas internas
+        .Pattern = "^[ \t]*\b" & chave & "\b\s*=\s*([^\r\n]*)"
     End With
     
     If regex.Test(strM) Then
         Set matches = regex.Execute(strM)
-        
-        ' Extrai apenas o grupo capturado (o valor em si, ignorando o nome da chave e o "=")
-        valorBruto = Trim(matches(0).SubMatches(0))
-        
-        ' --- TIPAGEM DINÂMICA ---
-        ' Analisa o formato da string extraída para converter para o tipo correto no VBA
-        If Left(valorBruto, 1) = """" And Right(valorBruto, 1) = """" Then
-            ' É texto: Remove as aspas do início e do fim
-            LerValor = Mid(valorBruto, 2, Len(valorBruto) - 2)
-            
-        ElseIf LCase(valorBruto) = "true" Then
-            ' É booleano verdadeiro
-            LerValor = True
-            
-        ElseIf LCase(valorBruto) = "false" Then
-            ' É booleano falso
-            LerValor = False
-            
-        ElseIf IsNumeric(valorBruto) Then
-            ' É número: Converte para Double para evitar erros com decimais
-            LerValor = CDbl(valorBruto)
-            
-        Else
-            ' Fallback para qualquer outra coisa (ex: listas no M, ou nulos)
-            LerValor = valorBruto
-        End If
+        ' Envia para o nosso novo tradutor
+        LerValor = ParseValorM(Trim(matches(0).SubMatches(0)))
     Else
-        LerValor = Empty ' Chave não encontrada no código M
+        LerValor = Empty
     End If
-    
     Set regex = Nothing
 End Function
 
 
 
 ' ---------------------------------------------------------
-' 5. MÉTODOS DE DADOS (CRUD - Update, Create & Delete)
+' 5. MÉTODOS DE DADOS (CRUD - Update & Create)
 ' ---------------------------------------------------------
 Public Sub DefinirValor(ByVal chave As String, ByVal Valor As Variant)
-    Dim strM As String, valorFormatado As String, novaLinha As String
-    Dim regex As Object
+    Dim dict As Object
+    Set dict = CreateObject("Scripting.Dictionary")
     
-    If Not Me.Existe Then Me.InicializarConsulta
-    strM = Me.CodigoMAtual
+    ' Adiciona a única variável no dicionário
+    dict.Add chave, Valor
     
-    ' Tipagem
-    Select Case VarType(Valor)
-        Case vbString: valorFormatado = FormatarValorM(Valor)
-        Case vbBoolean: valorFormatado = FormatarValorM(Valor)
-        Case vbInteger, vbLong, vbDouble, vbSingle, vbCurrency: valorFormatado = FormatarValorM(Valor)
-        Case vbDate: valorFormatado = FormatarValorM(Valor)
-        Case Else: valorFormatado = FormatarValorM(Valor)
-    End Select
-    
-    Set regex = CreateObject("VBScript.RegExp")
-    With regex
-        .Global = False: .IgnoreCase = True: .Multiline = True
-        .Pattern = "(\b" & chave & "\s*=\s*)(.*?)(?=,|\r|\n|$)"
-    End With
-    
-    If regex.Test(strM) Then
-        ' UPDATE
-        strM = regex.Replace(strM, "$1" & valorFormatado)
-    Else
-        ' CREATE
-        novaLinha = "let" & vbCrLf & "    " & chave & " = " & valorFormatado & ","
-        regex.Pattern = "^let\b"
-        strM = regex.Replace(strM, novaLinha)
-    End If
-    
-    ' >>> CHAMA O MOTOR DE RECONSTRUÇÃO DO "IN" AQUI <<<
-    AtualizarBlocoIn strM
-    
-    ' Salva
-    p_wb.Queries(p_QueryName).Formula = strM
-    Set regex = Nothing
+    ' Reaproveita o motor blindado do DefinirVarios para fazer o trabalho duro!
+    Me.DefinirVarios dict
 End Sub
 
 
@@ -196,20 +131,20 @@ Public Sub RemoverVariavel(ByVal chave As String)
         .Global = False
         .IgnoreCase = True
         .Multiline = True
-        ' Padrão para remover a linha inteira da chave
-        .Pattern = "^[ \t]*\b" & chave & "\b\s*=.*?(?:,|\r?\n|$)"
+        
+        ' NOVO PADRÃO: Pega do início da linha até a quebra de linha (\r\n), ignorando vírgulas internas
+        .Pattern = "^[ \t]*\b" & chave & "\b\s*=[^\r\n]*\r?\n?"
     End With
     
     If regex.Test(strM) Then
         ' Apaga a variável do bloco let
         strM = regex.Replace(strM, "")
         
-        ' Correção de sintaxe crucial: Se deletamos a última variável,
-        ' a variável de cima vai ficar com uma vírgula sobrando antes do "in". Isso quebra o M.
+        ' Correção de sintaxe crucial: Remove a vírgula orfã
         regex.Pattern = ",(\s*\bin\b)"
-        strM = regex.Replace(strM, "$1") ' Remove a vírgula orfã
+        strM = regex.Replace(strM, "$1")
         
-        ' >>> CHAMA O MOTOR DE RECONSTRUÇÃO DO "IN" AQUI <<<
+        ' Reconstrói o IN
         AtualizarBlocoIn strM
         
         ' Salva no Power Query
@@ -222,54 +157,101 @@ End Sub
 
 
 ' ---------------------------------------------------------
-' OPERAÇÕES EM LOTE (Performance Extrema)
+' 5. DEFINIR VARIOS (Corrige o Bug da vírgula do DateTime)
 ' ---------------------------------------------------------
 Public Sub DefinirVarios(ByVal DictVariaveis As Object)
     Dim strM As String, valorFormatado As String, novaLinha As String
-    Dim regex As Object
-    Dim chave As Variant
-    Dim Valor As Variant
+    Dim regex As Object, chave As Variant
     
-    ' Validações iniciais
     If DictVariaveis Is Nothing Then Exit Sub
-    If DictVariaveis.Count = 0 Then Exit Sub
     If Not Me.Existe Then Me.InicializarConsulta
-    
-    ' Lê a string do Power Query UMA ÚNICA VEZ
     strM = Me.CodigoMAtual
     
     Set regex = CreateObject("VBScript.RegExp")
-    regex.Global = False
-    regex.IgnoreCase = True
-    regex.Multiline = True
+    With regex
+        .Global = False
+        .IgnoreCase = True
+        .Multiline = True
+    End With
     
-    ' Loop pelo dicionário na memória
     For Each chave In DictVariaveis.Keys
-        Valor = DictVariaveis(chave)
-        valorFormatado = FormatarValorM(Valor) ' Usa a nossa função auxiliar
+        valorFormatado = FormatarValorM(DictVariaveis(chave))
         
-        ' Prepara o RegEx para a chave atual
-        regex.Pattern = "(\b" & CStr(chave) & "\s*=\s*)(.*?)(?=,|\r|\n|$)"
+        ' NOVO PADRÃO: Substitui a linha inteira para não bugar com vírgulas internas
+        regex.Pattern = "^([ \t]*\b" & CStr(chave) & "\b\s*=)[^\r\n]*"
         
         If regex.Test(strM) Then
-            ' UPDATE na memória
-            strM = regex.Replace(strM, "$1" & valorFormatado)
+            ' Update (Força a vírgula no final)
+            strM = regex.Replace(strM, "$1 " & valorFormatado & ",")
         Else
-            ' CREATE na memória
+            ' Create
             novaLinha = "let" & vbCrLf & "    " & CStr(chave) & " = " & valorFormatado & ","
             regex.Pattern = "^let\b"
             strM = regex.Replace(strM, novaLinha)
         End If
     Next chave
     
-    ' >>> RECONSTRÓI O BLOCO IN UMA ÚNICA VEZ <<<
+    ' CORREÇÃO DE SEGURANÇA: Remove qualquer vírgula órfã antes do "in"
+    regex.Pattern = ",(\s*\bin\b)"
+    strM = regex.Replace(strM, "$1")
+    
     AtualizarBlocoIn strM
-    
-    ' >>> SALVA NO POWER QUERY UMA ÚNICA VEZ <<<
     p_wb.Queries(p_QueryName).Formula = strM
-    
     Set regex = Nothing
 End Sub
+
+' ---------------------------------------------------------
+' 6. LISTAR TODAS (Extração e Log)
+' ---------------------------------------------------------
+Public Function ListarTodas(Optional ByVal DebugMode As Boolean = False) As Object
+    Dim strM As String, apenasLet As String
+    Dim regex As Object, matches As Object, match As Object
+    Dim dictRetorno As Object
+    Dim chave As String, Valor As Variant
+    
+    Set dictRetorno = CreateObject("Scripting.Dictionary")
+    strM = Me.CodigoMAtual
+    If strM = "" Then GoTo Fim
+    
+    Set regex = CreateObject("VBScript.RegExp")
+    
+    With regex
+        ' Isola apenas o bloco "let" para não ler as variáveis do bloco "in"
+        .Global = False: .IgnoreCase = True: .Multiline = True
+        .Pattern = "\bin\b[\s\S]*"
+        apenasLet = .Replace(strM, "")
+    
+        ' Puxa todas as chaves e valores da linha
+        .Global = True
+        .Pattern = "^[ \t]*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([^\r\n]*)"
+    End With
+    
+    If regex.Test(apenasLet) Then
+        Set matches = regex.Execute(apenasLet)
+        
+        If DebugMode Then
+            Debug.Print "--- VARIÁVEIS NO POWER QUERY [" & p_QueryName & "] ---"
+        End If
+        
+        For Each match In matches
+            chave = Trim(match.SubMatches(0))
+            ' Converte de volta para Tipo VBA nativo
+            Valor = ParseValorM(Trim(match.SubMatches(1)))
+            
+            dictRetorno.Add chave, Valor
+            
+            If DebugMode Then
+                Debug.Print "- " & chave & " (" & TypeName(Valor) & ") = " & CStr(Valor)
+            End If
+        Next match
+        
+        If DebugMode Then Debug.Print "---------------------------------------------------"
+    End If
+
+Fim:
+    Set ListarTodas = dictRetorno
+    Set regex = Nothing
+End Function
 
 
 
@@ -294,13 +276,19 @@ Private Sub AtualizarBlocoIn(ByRef strM As String)
         .Pattern = "\bin\b[\s\S]*"
     End With
     
-    ' A função RTrim garante que não deixaremos quebras de linha acumuladas antes do novo "in"
-    apenasLet = RTrim(regex.Replace(strM, ""))
+    apenasLet = regex.Replace(strM, "")
     
-    ' PASSO 2: Buscar as chaves APENAS dentro da parte isolada (apenasLet)
+    ' --- O SEGREDO DA CORREÇÃO ESTÁ AQUI ---
+    ' Desligamos o MultiLine para que o $ apague até as quebras de linha no final absoluto do texto
+    regex.Multiline = False
+    regex.Pattern = "\s+$"
+    apenasLet = regex.Replace(apenasLet, "")
+    ' ---------------------------------------
+    
+    ' PASSO 2: Buscar as chaves APENAS dentro da parte isolada
     With regex
         .Global = True
-        ' Lê palavras no início da linha, ignorando tabulações ou espaços
+        .Multiline = True ' Ligamos de novo para ler os inícios de linha
         .Pattern = "^[ \t]*([A-Za-z_][A-Za-z0-9_]*)[ \t]*="
     End With
     
@@ -308,30 +296,106 @@ Private Sub AtualizarBlocoIn(ByRef strM As String)
         Set matches = regex.Execute(apenasLet)
         chaves = "    [" & vbCrLf
         
-        ' Monta o bloco [Chave = Chave] com quebra de linha para ficar elegante
+        ' Monta o bloco [Chave = Chave]
         For Each match In matches
             chave = match.SubMatches(0)
             chaves = chaves & "        " & chave & " = " & chave & "," & vbCrLf
         Next match
         
-        ' Remove a última vírgula e a quebra de linha (", " + CR + LF = 3 caracteres)
+        ' Remove a última vírgula e a quebra de linha
         If Len(chaves) > 3 Then
             chaves = Left(chaves, Len(chaves) - 3) & vbCrLf
         End If
         chaves = chaves & "    ]"
         
-        ' PASSO 3: Junta o "let" original, o "in", e o novo bloco limpo
+        ' PASSO 3: Junta o "let", "in", e o novo bloco limpo
         strM = apenasLet & vbCrLf & "in" & vbCrLf & chaves
     End If
     
     Set regex = Nothing
 End Sub
 
+' ---------------------------------------------------------
+' FUNÇÃO AUXILIAR PRIVADA (M -> VBA)
+' ---------------------------------------------------------
+Private Function ParseValorM(ByVal valorBruto As String) As Variant
+    Dim miolo As String, arrDate() As String
+    
+    ' Remove a vírgula final se vier junto na captura
+    If Right(valorBruto, 1) = "," Then valorBruto = Trim(Left(valorBruto, Len(valorBruto) - 1))
+    
+    ' Tipagem: Data e Hora
+    If Left(valorBruto, 10) = "#datetime(" Then
+        miolo = Mid(valorBruto, 11, Len(valorBruto) - 11) ' Pega apenas os números
+        arrDate = Split(miolo, ",")
+        ParseValorM = DateSerial(Trim(arrDate(0)), Trim(arrDate(1)), Trim(arrDate(2))) + _
+                      TimeSerial(Trim(arrDate(3)), Trim(arrDate(4)), Trim(arrDate(5)))
+                      
+    ' Tipagem: Apenas Data
+    ElseIf Left(valorBruto, 6) = "#date(" Then
+        miolo = Mid(valorBruto, 7, Len(valorBruto) - 7)
+        arrDate = Split(miolo, ",")
+        ParseValorM = DateSerial(Trim(arrDate(0)), Trim(arrDate(1)), Trim(arrDate(2)))
+        
+    ' Tipagem: Texto
+    ElseIf Left(valorBruto, 1) = """" And Right(valorBruto, 1) = """" Then
+        ParseValorM = Mid(valorBruto, 2, Len(valorBruto) - 2)
+        
+    ' Tipagem: Booleano
+    ElseIf LCase(valorBruto) = "true" Then ParseValorM = True
+    ElseIf LCase(valorBruto) = "false" Then ParseValorM = False
+        
+    ' Tipagem: Número
+    ElseIf IsNumeric(valorBruto) Then
+        ParseValorM = CDbl(Replace(valorBruto, ".", ",")) ' Adapta ponto para vírgula do VBA
+        
+    ' Fallback genérico
+    Else
+        ParseValorM = valorBruto
+    End If
+End Function
 
 ' ---------------------------------------------------------
-' FUNÇÃO AUXILIAR PRIVADA (DRY - Don't Repeat Yourself)
+' FUNÇÃO AUXILIAR PRIVADA (Com suporte a Arrays e Ranges)
 ' ---------------------------------------------------------
 Private Function FormatarValorM(ByVal Valor As Variant) As String
+    ' 1. Trata Objetos do Excel (Ex: Um Range selecionado na planilha)
+    If IsObject(Valor) Then
+        If TypeName(Valor) = "Range" Then
+            ' Pega os valores reais da célula e reinicia o processo
+            FormatarValorM = FormatarValorM(Valor.Value2)
+            Exit Function
+        Else
+            FormatarValorM = "null" ' Outros objetos não suportados
+            Exit Function
+        End If
+    End If
+
+    ' 2. Trata Arrays (Vetores do VBA ou Matrizes vindas do Range)
+    If IsArray(Valor) Then
+        Dim item As Variant
+        Dim listaM As String
+        
+        listaM = "{"
+        ' O "For Each" varre o array achatando automaticamente linhas e colunas!
+        For Each item In Valor
+            ' Ignora células ou itens completamente vazios para não gerar "null" na lista M
+            If Not IsEmpty(item) Then
+                ' RECURSIVIDADE: Chama a si mesma para descobrir a tipagem de cada item
+                listaM = listaM & FormatarValorM(item) & ", "
+            End If
+        Next item
+        
+        ' Remove a última vírgula
+        If Len(listaM) > 2 Then
+            listaM = Left(listaM, Len(listaM) - 2)
+        End If
+        
+        FormatarValorM = listaM & "}"
+        Exit Function
+    End If
+
+    ' 3. Trata Variáveis Simples (Como já fazíamos)
     Select Case VarType(Valor)
         Case vbString: FormatarValorM = """" & Valor & """"
         Case vbBoolean: FormatarValorM = IIf(Valor, "true", "false")
@@ -341,3 +405,56 @@ Private Function FormatarValorM(ByVal Valor As Variant) As String
         Case Else: FormatarValorM = """" & CStr(Valor) & """"
     End Select
 End Function
+
+
+
+' ---------------------------------------------------------
+' 7. CONTROLES DE ESTADO: Verificar Existência
+' ---------------------------------------------------------
+Public Function ExisteVariavel(ByVal chave As String) As Boolean
+    Dim strM As String, regex As Object
+    
+    If Not Me.Existe Then
+        ExisteVariavel = False
+        Exit Function
+    End If
+    
+    strM = Me.CodigoMAtual
+    
+    Set regex = CreateObject("VBScript.RegExp")
+    With regex
+        .Global = False
+        .IgnoreCase = True
+        .Multiline = True
+        ' Padrão focado apenas em saber se a chave existe no início de alguma linha
+        .Pattern = "^[ \t]*\b" & chave & "\b\s*="
+    End With
+    
+    ExisteVariavel = regex.Test(strM)
+    Set regex = Nothing
+End Function
+
+
+' ---------------------------------------------------------
+' 8. CONTROLES DE ESTADO: Resetar / Limpar Tudo
+' ---------------------------------------------------------
+Public Sub LimparTudo()
+    Dim strM As String
+    
+    If Not Me.Existe Then Exit Sub
+    
+    ' Cria o escopo base mínimo
+    strM = "let" & vbCrLf & _
+           "    _Iniciado = true" & vbCrLf & _
+           "in" & vbCrLf & _
+           "    _Iniciado"
+           
+    ' Usa nosso próprio motor para montar o bloco IN perfeitamente
+    AtualizarBlocoIn strM
+    
+    ' Salva no Power Query
+    p_wb.Queries(p_QueryName).Formula = strM
+    
+    ' Feedback opcional via Debug
+    Debug.Print "Consulta [" & p_QueryName & "] resetada com sucesso."
+End Sub
