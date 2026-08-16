@@ -61,3 +61,23 @@ Sub TestarGeracaoDeRegistro()
     
     MsgBox "Tudo concluído! Vá olhar o card da sua consulta no Excel."
 End Sub
+
+Sub TestarLote()
+    Dim db As New clsPQConfig
+    Dim lote As Object
+    
+    ' Usa Late Binding para criar o Dicionário sem precisar marcar Referências
+    Set lote = CreateObject("Scripting.Dictionary")
+    
+    ' Preenche o "pacote" de variáveis
+    lote.Add "FiltroAno", 2026
+    lote.Add "FiltroMes", "Agosto"
+    lote.Add "CaminhoRede", "\\Servidor\PCP\"
+    lote.Add "PermiteAtualizacao", True
+    lote.Add "RodadoEm", Now
+    
+    ' Envia o pacote inteiro para a classe processar em milissegundos
+    db.DefinirVarios lote
+    
+    MsgBox "Lote de " & lote.Count & " variáveis salvo em uma única operação!"
+End Sub

@@ -77,7 +77,7 @@ End Sub
 ' ---------------------------------------------------------
 ' 4. MÉTODOS DE DADOS (CRUD - Leitura)
 ' ---------------------------------------------------------
-Public Function LerValor(ByVal Chave As String) As Variant
+Public Function LerValor(ByVal chave As String) As Variant
     Dim strM As String
     Dim regex As Object
     Dim matches As Object
@@ -99,7 +99,7 @@ Public Function LerValor(ByVal Chave As String) As Variant
         .Multiline = True
         
         ' PADRÃO REGEX: Busca o nome da chave, o sinal de igual e captura tudo até achar uma vírgula ou quebra de linha
-        .Pattern = Chave & "\s*=\s*(.*?)(?:,|\r|\n|$)"
+        .Pattern = chave & "\s*=\s*(.*?)(?:,|\r|\n|$)"
     End With
     
     If regex.Test(strM) Then
@@ -142,7 +142,7 @@ End Function
 ' ---------------------------------------------------------
 ' 5. MÉTODOS DE DADOS (CRUD - Update, Create & Delete)
 ' ---------------------------------------------------------
-Public Sub DefinirValor(ByVal Chave As String, ByVal Valor As Variant)
+Public Sub DefinirValor(ByVal chave As String, ByVal Valor As Variant)
     Dim strM As String, valorFormatado As String, novaLinha As String
     Dim regex As Object
     
@@ -151,17 +151,17 @@ Public Sub DefinirValor(ByVal Chave As String, ByVal Valor As Variant)
     
     ' Tipagem
     Select Case VarType(Valor)
-        Case vbString: valorFormatado = """" & Valor & """"
-        Case vbBoolean: valorFormatado = IIf(Valor, "true", "false")
-        Case vbInteger, vbLong, vbDouble, vbSingle, vbCurrency: valorFormatado = Replace(CStr(Valor), ",", ".")
-        Case vbDate: valorFormatado = "#datetime(" & Year(Valor) & ", " & Month(Valor) & ", " & Day(Valor) & ", " & Hour(Valor) & ", " & Minute(Valor) & ", " & Second(Valor) & ")"
-        Case Else: valorFormatado = """" & CStr(Valor) & """"
+        Case vbString: valorFormatado = FormatarValorM(Valor)
+        Case vbBoolean: valorFormatado = FormatarValorM(Valor)
+        Case vbInteger, vbLong, vbDouble, vbSingle, vbCurrency: valorFormatado = FormatarValorM(Valor)
+        Case vbDate: valorFormatado = FormatarValorM(Valor)
+        Case Else: valorFormatado = FormatarValorM(Valor)
     End Select
     
     Set regex = CreateObject("VBScript.RegExp")
     With regex
         .Global = False: .IgnoreCase = True: .Multiline = True
-        .Pattern = "(\b" & Chave & "\s*=\s*)(.*?)(?=,|\r|\n|$)"
+        .Pattern = "(\b" & chave & "\s*=\s*)(.*?)(?=,|\r|\n|$)"
     End With
     
     If regex.Test(strM) Then
@@ -169,7 +169,7 @@ Public Sub DefinirValor(ByVal Chave As String, ByVal Valor As Variant)
         strM = regex.Replace(strM, "$1" & valorFormatado)
     Else
         ' CREATE
-        novaLinha = "let" & vbCrLf & "    " & Chave & " = " & valorFormatado & ","
+        novaLinha = "let" & vbCrLf & "    " & chave & " = " & valorFormatado & ","
         regex.Pattern = "^let\b"
         strM = regex.Replace(strM, novaLinha)
     End If
@@ -182,7 +182,9 @@ Public Sub DefinirValor(ByVal Chave As String, ByVal Valor As Variant)
     Set regex = Nothing
 End Sub
 
-Public Sub RemoverVariavel(ByVal Chave As String)
+
+
+Public Sub RemoverVariavel(ByVal chave As String)
     Dim strM As String
     Dim regex As Object
     
@@ -195,7 +197,7 @@ Public Sub RemoverVariavel(ByVal Chave As String)
         .IgnoreCase = True
         .Multiline = True
         ' Padrão para remover a linha inteira da chave
-        .Pattern = "^[ \t]*\b" & Chave & "\b\s*=.*?(?:,|\r?\n|$)"
+        .Pattern = "^[ \t]*\b" & chave & "\b\s*=.*?(?:,|\r?\n|$)"
     End With
     
     If regex.Test(strM) Then
@@ -220,6 +222,58 @@ End Sub
 
 
 ' ---------------------------------------------------------
+' OPERAÇÕES EM LOTE (Performance Extrema)
+' ---------------------------------------------------------
+Public Sub DefinirVarios(ByVal DictVariaveis As Object)
+    Dim strM As String, valorFormatado As String, novaLinha As String
+    Dim regex As Object
+    Dim chave As Variant
+    Dim Valor As Variant
+    
+    ' Validações iniciais
+    If DictVariaveis Is Nothing Then Exit Sub
+    If DictVariaveis.Count = 0 Then Exit Sub
+    If Not Me.Existe Then Me.InicializarConsulta
+    
+    ' Lê a string do Power Query UMA ÚNICA VEZ
+    strM = Me.CodigoMAtual
+    
+    Set regex = CreateObject("VBScript.RegExp")
+    regex.Global = False
+    regex.IgnoreCase = True
+    regex.Multiline = True
+    
+    ' Loop pelo dicionário na memória
+    For Each chave In DictVariaveis.Keys
+        Valor = DictVariaveis(chave)
+        valorFormatado = FormatarValorM(Valor) ' Usa a nossa função auxiliar
+        
+        ' Prepara o RegEx para a chave atual
+        regex.Pattern = "(\b" & CStr(chave) & "\s*=\s*)(.*?)(?=,|\r|\n|$)"
+        
+        If regex.Test(strM) Then
+            ' UPDATE na memória
+            strM = regex.Replace(strM, "$1" & valorFormatado)
+        Else
+            ' CREATE na memória
+            novaLinha = "let" & vbCrLf & "    " & CStr(chave) & " = " & valorFormatado & ","
+            regex.Pattern = "^let\b"
+            strM = regex.Replace(strM, novaLinha)
+        End If
+    Next chave
+    
+    ' >>> RECONSTRÓI O BLOCO IN UMA ÚNICA VEZ <<<
+    AtualizarBlocoIn strM
+    
+    ' >>> SALVA NO POWER QUERY UMA ÚNICA VEZ <<<
+    p_wb.Queries(p_QueryName).Formula = strM
+    
+    Set regex = Nothing
+End Sub
+
+
+
+' ---------------------------------------------------------
 ' RECONSTRUTOR DO BLOCO IN (Motor Privado)
 ' ---------------------------------------------------------
 Private Sub AtualizarBlocoIn(ByRef strM As String)
@@ -236,7 +290,7 @@ Private Sub AtualizarBlocoIn(ByRef strM As String)
     With regex
         .Global = False
         .IgnoreCase = True
-        .MultiLine = True
+        .Multiline = True
         .Pattern = "\bin\b[\s\S]*"
     End With
     
@@ -250,7 +304,7 @@ Private Sub AtualizarBlocoIn(ByRef strM As String)
         .Pattern = "^[ \t]*([A-Za-z_][A-Za-z0-9_]*)[ \t]*="
     End With
     
-    If regex.test(apenasLet) Then
+    If regex.Test(apenasLet) Then
         Set matches = regex.Execute(apenasLet)
         chaves = "    [" & vbCrLf
         
@@ -272,3 +326,18 @@ Private Sub AtualizarBlocoIn(ByRef strM As String)
     
     Set regex = Nothing
 End Sub
+
+
+' ---------------------------------------------------------
+' FUNÇÃO AUXILIAR PRIVADA (DRY - Don't Repeat Yourself)
+' ---------------------------------------------------------
+Private Function FormatarValorM(ByVal Valor As Variant) As String
+    Select Case VarType(Valor)
+        Case vbString: FormatarValorM = """" & Valor & """"
+        Case vbBoolean: FormatarValorM = IIf(Valor, "true", "false")
+        Case vbInteger, vbLong, vbDouble, vbSingle, vbCurrency: FormatarValorM = Replace(CStr(Valor), ",", ".")
+        Case vbDate: FormatarValorM = "#datetime(" & Year(Valor) & ", " & Month(Valor) & ", " & Day(Valor) & ", " & Hour(Valor) & ", " & Minute(Valor) & ", " & Second(Valor) & ")"
+        Case vbNull, vbEmpty: FormatarValorM = "null"
+        Case Else: FormatarValorM = """" & CStr(Valor) & """"
+    End Select
+End Function
