@@ -8,6 +8,9 @@ Option Explicit
 ' Variáveis privadas que guardam o estado interno do objeto
 Private p_QueryName As String
 Private p_wb As Workbook
+Public VisualizarComoRegistro As Boolean
+
+
 
 ' ---------------------------------------------------------
 ' 1. CONSTRUTOR (Executado ao instanciar a classe)
@@ -15,7 +18,10 @@ Private p_wb As Workbook
 Private Sub Class_Initialize()
     Set p_wb = ActiveWorkbook
     p_QueryName = "Variaveis" ' Define um nome padrão de fábrica
+    VisualizarComoRegistro = True
 End Sub
+
+
 
 ' ---------------------------------------------------------
 ' 2. PROPRIEDADES (Características da classe)
@@ -46,6 +52,8 @@ Public Property Get CodigoMAtual() As String
     End If
 End Property
 
+
+
 ' ---------------------------------------------------------
 ' 3. MÉTODOS DE INFRAESTRUTURA
 ' ---------------------------------------------------------
@@ -63,6 +71,8 @@ Public Sub InicializarConsulta()
                  
     p_wb.Queries.Add Name:=p_QueryName, Formula:=codigoBase
 End Sub
+
+
 
 ' ---------------------------------------------------------
 ' 4. MÉTODOS DE DADOS (CRUD - Leitura)
@@ -126,3 +136,130 @@ Public Function LerValor(ByVal Chave As String) As Variant
     
     Set regex = Nothing
 End Function
+
+
+
+' ---------------------------------------------------------
+' 5. MÉTODOS DE DADOS (CRUD - Update, Create & Delete)
+' ---------------------------------------------------------
+Public Sub DefinirValor(ByVal Chave As String, ByVal Valor As Variant)
+    Dim strM As String, valorFormatado As String, novaLinha As String
+    Dim regex As Object
+    
+    If Not Me.Existe Then Me.InicializarConsulta
+    strM = Me.CodigoMAtual
+    
+    ' Tipagem
+    Select Case VarType(Valor)
+        Case vbString: valorFormatado = """" & Valor & """"
+        Case vbBoolean: valorFormatado = IIf(Valor, "true", "false")
+        Case vbInteger, vbLong, vbDouble, vbSingle, vbCurrency: valorFormatado = Replace(CStr(Valor), ",", ".")
+        Case vbDate: valorFormatado = "#datetime(" & Year(Valor) & ", " & Month(Valor) & ", " & Day(Valor) & ", " & Hour(Valor) & ", " & Minute(Valor) & ", " & Second(Valor) & ")"
+        Case Else: valorFormatado = """" & CStr(Valor) & """"
+    End Select
+    
+    Set regex = CreateObject("VBScript.RegExp")
+    With regex
+        .Global = False: .IgnoreCase = True: .Multiline = True
+        .Pattern = "(\b" & Chave & "\s*=\s*)(.*?)(?=,|\r|\n|$)"
+    End With
+    
+    If regex.Test(strM) Then
+        ' UPDATE
+        strM = regex.Replace(strM, "$1" & valorFormatado)
+    Else
+        ' CREATE
+        novaLinha = "let" & vbCrLf & "    " & Chave & " = " & valorFormatado & ","
+        regex.Pattern = "^let\b"
+        strM = regex.Replace(strM, novaLinha)
+    End If
+    
+    ' >>> CHAMA O MOTOR DE RECONSTRUÇÃO DO "IN" AQUI <<<
+    AtualizarBlocoIn strM
+    
+    ' Salva
+    p_wb.Queries(p_QueryName).Formula = strM
+    Set regex = Nothing
+End Sub
+
+Public Sub RemoverVariavel(ByVal Chave As String)
+    Dim strM As String
+    Dim regex As Object
+    
+    If Not Me.Existe Then Exit Sub
+    strM = Me.CodigoMAtual
+    
+    Set regex = CreateObject("VBScript.RegExp")
+    With regex
+        .Global = False
+        .IgnoreCase = True
+        .Multiline = True
+        ' Padrão para remover a linha inteira da chave
+        .Pattern = "^[ \t]*\b" & Chave & "\b\s*=.*?(?:,|\r?\n|$)"
+    End With
+    
+    If regex.Test(strM) Then
+        ' Apaga a variável do bloco let
+        strM = regex.Replace(strM, "")
+        
+        ' Correção de sintaxe crucial: Se deletamos a última variável,
+        ' a variável de cima vai ficar com uma vírgula sobrando antes do "in". Isso quebra o M.
+        regex.Pattern = ",(\s*\bin\b)"
+        strM = regex.Replace(strM, "$1") ' Remove a vírgula orfã
+        
+        ' >>> CHAMA O MOTOR DE RECONSTRUÇÃO DO "IN" AQUI <<<
+        AtualizarBlocoIn strM
+        
+        ' Salva no Power Query
+        p_wb.Queries(p_QueryName).Formula = strM
+    End If
+    
+    Set regex = Nothing
+End Sub
+
+
+
+' ---------------------------------------------------------
+' RECONSTRUTOR DO BLOCO IN (Motor Privado)
+' ---------------------------------------------------------
+Private Sub AtualizarBlocoIn(ByRef strM As String)
+    ' Se o usuário desativou a propriedade, o construtor não faz nada
+    If Not Me.VisualizarComoRegistro Then Exit Sub
+    
+    Dim regex As Object, matches As Object, match As Object
+    Dim chaves As String, Chave As String
+    
+    Set regex = CreateObject("VBScript.RegExp")
+    With regex
+        .Global = True
+        .IgnoreCase = True
+        .Multiline = True
+        
+        ' PADRÃO: Pega todas as palavras no início de linha antes do "=" (ex: "DiretorioPDF =")
+        .Pattern = "^\s*([A-Za-z_][A-Za-z0-9_]*)\s*="
+    End With
+    
+    If regex.Test(strM) Then
+        Set matches = regex.Execute(strM)
+        chaves = "    [" & vbCrLf
+        
+        ' Monta o bloco [Chave = Chave] com quebra de linha para ficar elegante no M
+        For Each match In matches
+            Chave = match.SubMatches(0)
+            chaves = chaves & "        " & Chave & " = " & Chave & "," & vbCrLf
+        Next match
+        
+        ' Remove a última vírgula e quebra de linha (", " + CR + LF = 3 caracteres)
+        If Len(chaves) > 3 Then
+            chaves = Left(chaves, Len(chaves) - 3) & vbCrLf
+        End If
+        chaves = chaves & "    ]"
+        
+        ' Agora, substitui tudo a partir da palavra "in" pelo novo bloco
+        regex.Pattern = "\bin\b[\s\S]*"
+        regex.Global = False
+        strM = regex.Replace(strM, "in" & vbCrLf & chaves)
+    End If
+    
+    Set regex = Nothing
+End Sub
