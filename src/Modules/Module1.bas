@@ -1,19 +1,26 @@
 Option Explicit
 
+' ==========================================================================
+' Rotina:      TestarClassePQ
+' Descrição:   Verifica a inicialização da classe clsPQConfig, cria a consulta 
+'              base se necessário e testa a leitura de uma variável específica.
+' Parâmetros:  Nenhum
+' ==========================================================================
 Sub TestarClassePQ()
     Dim db As New clsPQConfig
     Dim Valor As Variant
     
-    ' Verifica se a consulta base existe, se não, cria.
+    ' Verifica se a consulta base existe no Power Query; se não, cria a estrutura inicial e aborta para permitir inserção manual do usuário
     If Not db.Existe Then
         db.Inicializar
         MsgBox "Consulta criada. Adicione suas variáveis no Power Query e rode novamente!"
         Exit Sub
     End If
     
-    ' Lê uma variável da sua consulta (substitua pelo nome real de uma variável sua)
+    ' Extrai o valor da variável "_iniciado" diretamente do código M para o VBA
     Valor = db.LerValor("_iniciado")
     
+    ' Valida se a variável foi encontrada e retorna o valor e o tipo de dado interpretado (String, Boolean, etc.)
     If IsEmpty(Valor) Then
         MsgBox "Variável não encontrada!"
     Else
@@ -22,77 +29,113 @@ Sub TestarClassePQ()
     End If
 End Sub
 
+
+
+
+' ==========================================================================
+' Rotina:      TestarEscritaPQ
+' Descrição:   Demonstra a capacidade da classe de injetar diferentes tipos 
+'              de dados nativos do VBA diretamente no código M.
+' Parâmetros:  Nenhum
+' ==========================================================================
 Sub TestarEscritaPQ()
     Dim db As New clsPQConfig
     
-    ' Aponta para a consulta que você usa (o padrão da classe já é "Variaveis")
+    ' Aponta para a consulta padrão "Variaveis" para realizar as injeções de código
     db.NomeConsulta = "Variaveis"
     
-    ' 1. Criar/Atualizar uma String
+    ' 1. Criar/Atualizar uma String (Caminho de diretório)
     db.DefinirValor "DiretorioPDF", "C:\Arquivos\Relatorios\"
     
-    ' 2. Criar/Atualizar um Booleano (como os seus botões do Ribbon)
+    ' 2. Criar/Atualizar um Booleano (Controle de fluxo/Ribbon)
     db.DefinirValor "ExportAoATT", False
     
-    ' 3. Criar/Atualizar um Número
+    ' 3. Criar/Atualizar um Número inteiro (Parâmetro de impressão)
     db.DefinirValor "CopiasTerreo", 3
     
-    ' 4. Criar/Atualizar uma Data (Bônus corporativo!)
+    ' 4. Criar/Atualizar uma Data (Garante timestamp da última rodada da macro)
     db.DefinirValor "UltimaAtualizacao", Now
     
     MsgBox "Variáveis salvas no Power Query com sucesso!" & vbCrLf & vbCrLf & _
            "Vá no Power Query e olhe o editor avançado da consulta 'Variaveis' para ver a mágica.", vbInformation
 End Sub
 
+
+
+
+' ==========================================================================
+' Rotina:      TestarGeracaoDeRegistro
+' Descrição:   Testa a inclusão e exclusão dinâmica de variáveis, assegurando 
+'              que o bloco 'in' do Power Query se ajuste automaticamente.
+' Parâmetros:  Nenhum
+' ==========================================================================
 Sub TestarGeracaoDeRegistro()
     Dim db As New clsPQConfig
     
-    ' 1. Cria novas variáveis (o "in" será montado lindamente)
+    ' 1. Cria novas variáveis ambientais de forma sequencial (o "in" será montado lindamente)
     db.DefinirValor "DiretorioRelatorios", "Z:\PCP\Relatorios\"
     db.DefinirValor "NotificarEmail", True
     
-    ' 2. Cria uma variável temporária
+    ' 2. Cria uma variável temporária que servirá de cobaia para exclusão
     db.DefinirValor "VariavelTesteDelete", 999
     
     ' (Pause aqui se quiser ver a variável criada no painel)
     
-    ' 3. Deleta a variável temporária (o "in" vai se ajustar sozinho)
+    ' 3. Deleta a variável temporária, forçando o motor interno a reestruturar a sintaxe M para não deixar vírgulas sobrando
     db.RemoverVariavel "VariavelTesteDelete"
     
     MsgBox "Tudo concluído! Vá olhar o card da sua consulta no Excel."
 End Sub
 
+
+
+
+' ==========================================================================
+' Rotina:      TestarLote
+' Descrição:   Processa a inserção de múltiplas variáveis de uma só vez 
+'              utilizando um Dicionário, reduzindo o I/O no Power Query.
+' Parâmetros:  Nenhum
+' ==========================================================================
 Sub TestarLote()
     Dim db As New clsPQConfig
     Dim lote As Object
     
-    ' Usa Late Binding para criar o Dicionário sem precisar marcar Referências
+    ' Usa Late Binding para instanciar o Scripting.Dictionary, dispensando a necessidade de habilitar a referência na máquina do usuário final
     Set lote = CreateObject("Scripting.Dictionary")
     
-    ' Preenche o "pacote" de variáveis
+    ' Preenche o "pacote" com um mix de tipos de dados (Numérico, String, Booleano, Data)
     lote.Add "FiltroAno", 2026
     lote.Add "FiltroMes", "Agosto"
     lote.Add "CaminhoRede", "\\Servidor\PCP\"
     lote.Add "PermiteAtualizacao", True
     lote.Add "RodadoEm", Now
     
-    ' Envia o pacote inteiro para a classe processar em milissegundos
+    ' Descarrega o dicionário inteiro em uma única chamada, otimizando o tempo de processamento
     db.DefinirVarios lote
     
     MsgBox "Lote de " & lote.Count & " variáveis salvo em uma única operação!"
 End Sub
 
+
+
+
+' ==========================================================================
+' Rotina:      TestarGeracaoDeListas
+' Descrição:   Testa a conversão avançada de Arrays VBA e objetos Range do 
+'              Excel em Listas nativas do Power Query (formato M).
+' Parâmetros:  Nenhum
+' ==========================================================================
 Sub TestarGeracaoDeListas()
     Dim db As New clsPQConfig
     Dim arrayNativo As Variant
     
-    ' TESTE 1: Passando um Array direto do VBA
-    ' Pode ter números e textos misturados, a classe vai se virar perfeitamente
+    ' TESTE 1: Injeção a partir de um Array direto do VBA
+    ' A matriz heterogênea é convertida internamente para a sintaxe de lista M: {"Aprovado", "Pendente", 2026}
     arrayNativo = Array("Aprovado", "Pendente", 2026)
     db.DefinirValor "StatusPermitidos", arrayNativo
     
-    ' TESTE 2: Passando um Range do Excel (Seleção atual)
-    ' A classe descobre que é Range, extrai os valores e converte em lista M
+    ' TESTE 2: Injeção a partir de uma seleção ativa no Excel
+    ' Avalia se o usuário selecionou células. Em caso positivo, extrai a propriedade Value2 da matriz e injeta no M
     If TypeName(Selection) = "Range" Then
         db.DefinirValor "EstadosSelecionados", Selection
     End If
@@ -101,71 +144,103 @@ Sub TestarGeracaoDeListas()
 End Sub
 
 
+
+
+' ==========================================================================
+' Rotina:      TestarCorrecaoEDebug
+' Descrição:   Avalia a extração e a fidelidade da tipagem de dados complexos 
+'              ao serem lidos de volta para o VBA, além de testar o Debug.
+' Parâmetros:  Nenhum
+' ==========================================================================
 Sub TestarCorrecaoEDebug()
     Dim db As New clsPQConfig
     Dim dict As Object
     
-    ' 1. Cria variáveis problemáticas (O Bug da vírgula foi extinto)
+    ' 1. Cria variáveis que historicamente geram bugs de formatação (Data e Arrays)
     Set dict = CreateObject("Scripting.Dictionary")
     dict.Add "DataExata", Now
     dict.Add "MinhaLista", Array(10, 20, 30)
     db.DefinirVarios dict
     
-    ' 2. Testa a extração com o modo Debug Ativado
+    ' 2. Solicita um dump completo do PQ habilitando o log no Immediate Window (Verificação Imediata) para facilitar auditorias
     ' Abra a janela de verificação imediata (CTRL+G) para ver o relatório!
     Set dict = db.ListarTodas(DebugMode:=True)
     
-    ' 3. Valida se a Data voltou pro VBA como tipo Date e não String
+    ' 3. Valida se o parser reverteu a data em M (#datetime) adequadamente para um objeto Date nativo do VBA
     MsgBox "A Variável DataExata voltou como tipo: " & TypeName(dict("DataExata"))
 End Sub
 
+
+
+' ==========================================================================
+' Rotina:      TestarControlesDeEstado
+' Descrição:   Demonstra verificações lógicas de ambiente baseadas na 
+'              existência de variáveis, bem como o reset geral da consulta.
+' Parâmetros:  Nenhum
+' ==========================================================================
 Sub TestarControlesDeEstado()
     Dim db As New clsPQConfig
     
-    ' 1. Verifica se uma configuração crucial já existe antes de tentar exportar algo
+    ' 1. Valida se a chave primária de execução (CaminhoRede) está presente no ambiente M antes de permitir o avanço do sistema
     If Not db.ExisteVariavel("CaminhoRede") Then
         MsgBox "Atenção: O Caminho da Rede ainda não foi configurado!", vbExclamation
     Else
         MsgBox "O sistema está pronto para uso."
     End If
     
-    ' 2. (Opcional) Descomente a linha abaixo para testar o Reset
-    db.LimparTudo
+    ' 2. Método destrutivo para limpar configurações residuais e retornar ao estado de fábrica (Comentado por segurança)
+    ' db.LimparTudo
 End Sub
 
 
+
+
+' ==========================================================================
+' Rotina:      TestarPerfisDeAmbiente
+' Descrição:   Testa os recursos de clonagem e sobrescrita de consultas, 
+'              úteis para gerenciar diferentes perfis ou criar backups.
+' Parâmetros:  Nenhum
+' ==========================================================================
 Sub TestarPerfisDeAmbiente()
     Dim db As New clsPQConfig
     Dim sucesso As Boolean
     
-    ' EXEMPLO 1: Criando um Snapshot/Backup das variáveis atuais
+    ' EXEMPLO 1: Cria um Snapshot exato em tempo real do código M na consulta de backup
     'sucesso = db.Clonar("Variaveis", "Variaveis_BKP", Sobrescrever:=True)
     
     If sucesso Then
         MsgBox "Backup criado com sucesso! Olhe no painel do Power Query.", vbInformation
     End If
     
-    ' EXEMPLO 2: O "Rollback" (Restaurando o ambiente)
+    ' EXEMPLO 2: Restaura as configurações do ambiente copiando o código M do backup de volta para a produção
     ' Digamos que você bagunçou a consulta "Variaveis". Basta jogar o BKP por cima dela!
     db.Clonar "Variaveis_BKP", "Variaveis", Sobrescrever:=True
 End Sub
 
 
+
+
+' ==========================================================================
+' Rotina:      TestarMotorRAD
+' Descrição:   Verifica a funcionalidade de exportar a consulta Power Query 
+'              como um arquivo de texto criptografado em Tags, e sua reimportação.
+' Parâmetros:  Nenhum
+' ==========================================================================
 Sub TestarMotorRAD()
     Dim db As New clsPQConfig
     Dim caminhoBase As String
     
-    ' Pega o caminho do desktop automaticamente
+    ' Descobre dinamicamente o diretório da área de trabalho do usuário logado via Windows Scripting Host
     caminhoBase = CreateObject("WScript.Shell").SpecialFolders("Desktop") & "\"
     
     ' 1. EXPORTAÇÃO
+    ' Consolida o código M e os metadados descritivos em um único arquivo de texto padronizado
     ' (Não esqueça de ir no PQ e colocar uma descrição na consulta "Variaveis" para testar)
-    'db.ExportarConsultaParaTXT "Variaveis", caminhoBase & "Componente_Variaveis.txt"
+    db.ExportarConsultaParaTXT "Variaveis", caminhoBase & "Componente_Variaveis.txt"
     
-    'MsgBox "O arquivo foi gerado no seu Desktop. Abra o TXT e veja o formato das Tags!", vbInformation
+    MsgBox "O arquivo foi gerado no seu Desktop. Abra o TXT e veja o formato das Tags!", vbInformation
     
     ' 2. IMPORTAÇÃO
-    ' Ele lê o arquivo e cria um pacote novo
+    ' Faz o parse das tags do arquivo exportado e gera/atualiza a estrutura de forma espelhada no Excel
     db.ImportarConsultaDeTXT caminhoBase & "Componente_Variaveis.txt", Sobrescrever:=True
 End Sub
-
