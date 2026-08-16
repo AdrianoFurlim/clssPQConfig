@@ -151,3 +151,21 @@ Sub TestarPerfisDeAmbiente()
 End Sub
 
 
+Sub TestarMotorRAD()
+    Dim db As New clsPQConfig
+    Dim caminhoBase As String
+    
+    ' Pega o caminho do desktop automaticamente
+    caminhoBase = CreateObject("WScript.Shell").SpecialFolders("Desktop") & "\"
+    
+    ' 1. EXPORTAÇÃO
+    ' (Não esqueça de ir no PQ e colocar uma descrição na consulta "Variaveis" para testar)
+    'db.ExportarConsultaParaTXT "Variaveis", caminhoBase & "Componente_Variaveis.txt"
+    
+    'MsgBox "O arquivo foi gerado no seu Desktop. Abra o TXT e veja o formato das Tags!", vbInformation
+    
+    ' 2. IMPORTAÇÃO
+    ' Ele lê o arquivo e cria um pacote novo
+    db.ImportarConsultaDeTXT caminhoBase & "Componente_Variaveis.txt", Sobrescrever:=True
+End Sub
+
