@@ -20,7 +20,7 @@ Public VisualizarComoRegistro As Boolean ' Se True, monta o bloco [chave=chave] 
 ' =========================================================================================
 ' ==========================================================================
 ' Rotina:      Class_Initialize
-' Descrição:   Construtor padrão da classe. Inicializa o estado definindo o 
+' Descrição:   Construtor padrão da classe. Inicializa o estado definindo o
 '              ambiente de trabalho e os parâmetros padrão da consulta.
 ' Parâmetros:  Nenhum
 ' ==========================================================================
@@ -90,7 +90,7 @@ End Property
 ' =========================================================================================
 ' ==========================================================================
 ' Rotina:      Inicializar
-' Descrição:   Cria a consulta base no Power Query se ela ainda não existir, 
+' Descrição:   Cria a consulta base no Power Query se ela ainda não existir,
 '              fornecendo um esqueleto M inicial e válido.
 ' Parâmetros:  Nenhum
 ' ==========================================================================
@@ -109,7 +109,7 @@ End Sub
 
 ' ==========================================================================
 ' Rotina:      LimparTudo
-' Descrição:   Reseta a consulta existente, sobrescrevendo todo o código M 
+' Descrição:   Reseta a consulta existente, sobrescrevendo todo o código M
 '              com o esqueleto base inicial.
 ' Parâmetros:  Nenhum
 ' ==========================================================================
@@ -131,7 +131,7 @@ End Sub
 
 ' ==========================================================================
 ' Função:      ExisteVariavel
-' Descrição:   Verifica via Expressão Regular se uma variável específica 
+' Descrição:   Verifica via Expressão Regular se uma variável específica
 '              está declarada dentro do código M da consulta.
 ' Parâmetros:  chave (String) - O nome da variável a ser procurada.
 ' Retorno:     Boolean - True se a variável existir.
@@ -163,7 +163,7 @@ End Function
 ' =========================================================================================
 ' ==========================================================================
 ' Função:      LerValor
-' Descrição:   Extrai e interpreta o valor de uma variável específica no 
+' Descrição:   Extrai e interpreta o valor de uma variável específica no
 '              código M, convertendo para um tipo de dado VBA apropriado.
 ' Parâmetros:  chave (String) - A variável a ser lida.
 ' Retorno:     Variant - O valor lido e tipado, ou Empty se não encontrar.
@@ -192,7 +192,7 @@ End Function
 
 ' ==========================================================================
 ' Função:      ListarTodas
-' Descrição:   Mapeia e retorna todas as variáveis e valores contidos na 
+' Descrição:   Mapeia e retorna todas as variáveis e valores contidos na
 '              consulta M em um formato de dicionário VBA.
 ' Parâmetros:  DebugMode (Boolean) - Se True, imprime os resultados na Janela de Verificação.
 ' Retorno:     Object (Scripting.Dictionary) - Dicionário com chaves e valores tipados.
@@ -259,7 +259,7 @@ End Sub
 
 ' ==========================================================================
 ' Rotina:      DefinirVarios
-' Descrição:   Insere ou atualiza um lote de variáveis fornecidas através de 
+' Descrição:   Insere ou atualiza um lote de variáveis fornecidas através de
 '              um objeto Dictionary, diretamente no código M.
 ' Parâmetros:  DictVariaveis (Object) - Dicionário contendo chaves e valores.
 ' ==========================================================================
@@ -388,7 +388,7 @@ End Function
 ' =========================================================================================
 ' ==========================================================================
 ' Rotina:      AtualizarBlocoIn (Private)
-' Descrição:   Reconstrói dinamicamente o bloco 'in' do código M para expor 
+' Descrição:   Reconstrói dinamicamente o bloco 'in' do código M para expor
 '              todas as variáveis como um Registro, facilitando o debug.
 ' Parâmetros:  strM (String, ByRef) - O código M sendo manipulado em memória.
 ' ==========================================================================
@@ -438,7 +438,7 @@ End Sub
 
 ' ==========================================================================
 ' Função:      ParseValorM (Private)
-' Descrição:   Lê uma representação textual de valor em M e a converte de volta 
+' Descrição:   Lê uma representação textual de valor em M e a converte de volta
 '              para o tipo de dado original equivalente no ambiente VBA.
 ' Parâmetros:  valorBruto (String) - O fragmento de string M contendo o valor.
 ' Retorno:     Variant - Valor processado e tipado para uso no VBA.
@@ -518,7 +518,7 @@ End Function
 ' =========================================================================================
 ' ==========================================================================
 ' Rotina:      ExportarConsultaParaTXT
-' Descrição:   Extrai os metadados (Descrição e Instruções) e o código M 
+' Descrição:   Extrai os metadados (Descrição e Instruções) e o código M
 '              da consulta para um arquivo de texto com marcação (Tags).
 ' Parâmetros:  NomeConsulta (String) - A query alvo da extração.
 '              CaminhoArquivo (String) - Destino físico do arquivo .txt.
@@ -570,7 +570,7 @@ End Sub
 
 ' ==========================================================================
 ' Rotina:      ImportarConsultaDeTXT
-' Descrição:   Lê um arquivo .txt estruturado via RAD Tools e reconstrói 
+' Descrição:   Lê um arquivo .txt estruturado via RAD Tools e reconstrói
 '              a consulta no Power Query, injetando o código M e os metadados.
 ' Parâmetros:  CaminhoArquivo (String) - Caminho lógico do arquivo texto.
 '              Sobrescrever (Boolean) - Permissão para substituir consulta pré-existente.
@@ -629,7 +629,7 @@ End Sub
 
 ' ==========================================================================
 ' Função:      ExtrairTag (Private)
-' Descrição:   Interpreta a sintaxe similar a XML gerada pela classe para 
+' Descrição:   Interpreta a sintaxe similar a XML gerada pela classe para
 '              isolar o conteúdo encapsulado entre duas tags específicas.
 ' Parâmetros:  Texto (String) - O conteúdo bruto do arquivo.
 '              TagName (String) - Nome da tag base de abertura/fechamento.
