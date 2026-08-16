@@ -227,38 +227,47 @@ Private Sub AtualizarBlocoIn(ByRef strM As String)
     If Not Me.VisualizarComoRegistro Then Exit Sub
     
     Dim regex As Object, matches As Object, match As Object
-    Dim chaves As String, Chave As String
+    Dim chaves As String, chave As String
+    Dim apenasLet As String
     
     Set regex = CreateObject("VBScript.RegExp")
+    
+    ' PASSO 1: Isolar apenas o bloco "let" apagando o "in" e tudo o que vem depois
     With regex
-        .Global = True
+        .Global = False
         .IgnoreCase = True
-        .Multiline = True
-        
-        ' PADRÃO: Pega todas as palavras no início de linha antes do "=" (ex: "DiretorioPDF =")
-        .Pattern = "^\s*([A-Za-z_][A-Za-z0-9_]*)\s*="
+        .MultiLine = True
+        .Pattern = "\bin\b[\s\S]*"
     End With
     
-    If regex.Test(strM) Then
-        Set matches = regex.Execute(strM)
+    ' A função RTrim garante que não deixaremos quebras de linha acumuladas antes do novo "in"
+    apenasLet = RTrim(regex.Replace(strM, ""))
+    
+    ' PASSO 2: Buscar as chaves APENAS dentro da parte isolada (apenasLet)
+    With regex
+        .Global = True
+        ' Lê palavras no início da linha, ignorando tabulações ou espaços
+        .Pattern = "^[ \t]*([A-Za-z_][A-Za-z0-9_]*)[ \t]*="
+    End With
+    
+    If regex.test(apenasLet) Then
+        Set matches = regex.Execute(apenasLet)
         chaves = "    [" & vbCrLf
         
-        ' Monta o bloco [Chave = Chave] com quebra de linha para ficar elegante no M
+        ' Monta o bloco [Chave = Chave] com quebra de linha para ficar elegante
         For Each match In matches
-            Chave = match.SubMatches(0)
-            chaves = chaves & "        " & Chave & " = " & Chave & "," & vbCrLf
+            chave = match.SubMatches(0)
+            chaves = chaves & "        " & chave & " = " & chave & "," & vbCrLf
         Next match
         
-        ' Remove a última vírgula e quebra de linha (", " + CR + LF = 3 caracteres)
+        ' Remove a última vírgula e a quebra de linha (", " + CR + LF = 3 caracteres)
         If Len(chaves) > 3 Then
             chaves = Left(chaves, Len(chaves) - 3) & vbCrLf
         End If
         chaves = chaves & "    ]"
         
-        ' Agora, substitui tudo a partir da palavra "in" pelo novo bloco
-        regex.Pattern = "\bin\b[\s\S]*"
-        regex.Global = False
-        strM = regex.Replace(strM, "in" & vbCrLf & chaves)
+        ' PASSO 3: Junta o "let" original, o "in", e o novo bloco limpo
+        strM = apenasLet & vbCrLf & "in" & vbCrLf & chaves
     End If
     
     Set regex = Nothing

@@ -22,7 +22,7 @@ Sub TestarClassePQ()
     End If
 End Sub
 
-Sub TestarEscritaPQ1()
+Sub TestarEscritaPQ()
     Dim db As New clsPQConfig
     
     ' Aponta para a consulta que você usa (o padrão da classe já é "Variaveis")
@@ -42,4 +42,22 @@ Sub TestarEscritaPQ1()
     
     MsgBox "Variáveis salvas no Power Query com sucesso!" & vbCrLf & vbCrLf & _
            "Vá no Power Query e olhe o editor avançado da consulta 'Variaveis' para ver a mágica.", vbInformation
+End Sub
+
+Sub TestarGeracaoDeRegistro()
+    Dim db As New clsPQConfig
+    
+    ' 1. Cria novas variáveis (o "in" será montado lindamente)
+    db.DefinirValor "DiretorioRelatorios", "Z:\PCP\Relatorios\"
+    db.DefinirValor "NotificarEmail", True
+    
+    ' 2. Cria uma variável temporária
+    db.DefinirValor "VariavelTesteDelete", 999
+    
+    ' (Pause aqui se quiser ver a variável criada no painel)
+    
+    ' 3. Deleta a variável temporária (o "in" vai se ajustar sozinho)
+    db.RemoverVariavel "VariavelTesteDelete"
+    
+    MsgBox "Tudo concluído! Vá olhar o card da sua consulta no Excel."
 End Sub
