@@ -2,7 +2,7 @@ Option Explicit
 
 ' ==========================================================================
 ' Rotina:      TestarClassePQ
-' Descrição:   Verifica a inicialização da classe clsPQConfig, cria a consulta 
+' Descrição:   Verifica a inicialização da classe clsPQConfig, cria a consulta
 '              base se necessário e testa a leitura de uma variável específica.
 ' Parâmetros:  Nenhum
 ' ==========================================================================
@@ -34,7 +34,7 @@ End Sub
 
 ' ==========================================================================
 ' Rotina:      TestarEscritaPQ
-' Descrição:   Demonstra a capacidade da classe de injetar diferentes tipos 
+' Descrição:   Demonstra a capacidade da classe de injetar diferentes tipos
 '              de dados nativos do VBA diretamente no código M.
 ' Parâmetros:  Nenhum
 ' ==========================================================================
@@ -65,7 +65,7 @@ End Sub
 
 ' ==========================================================================
 ' Rotina:      TestarGeracaoDeRegistro
-' Descrição:   Testa a inclusão e exclusão dinâmica de variáveis, assegurando 
+' Descrição:   Testa a inclusão e exclusão dinâmica de variáveis, assegurando
 '              que o bloco 'in' do Power Query se ajuste automaticamente.
 ' Parâmetros:  Nenhum
 ' ==========================================================================
@@ -92,7 +92,7 @@ End Sub
 
 ' ==========================================================================
 ' Rotina:      TestarLote
-' Descrição:   Processa a inserção de múltiplas variáveis de uma só vez 
+' Descrição:   Processa a inserção de múltiplas variáveis de uma só vez
 '              utilizando um Dicionário, reduzindo o I/O no Power Query.
 ' Parâmetros:  Nenhum
 ' ==========================================================================
@@ -121,7 +121,7 @@ End Sub
 
 ' ==========================================================================
 ' Rotina:      TestarGeracaoDeListas
-' Descrição:   Testa a conversão avançada de Arrays VBA e objetos Range do 
+' Descrição:   Testa a conversão avançada de Arrays VBA e objetos Range do
 '              Excel em Listas nativas do Power Query (formato M).
 ' Parâmetros:  Nenhum
 ' ==========================================================================
@@ -148,7 +148,7 @@ End Sub
 
 ' ==========================================================================
 ' Rotina:      TestarCorrecaoEDebug
-' Descrição:   Avalia a extração e a fidelidade da tipagem de dados complexos 
+' Descrição:   Avalia a extração e a fidelidade da tipagem de dados complexos
 '              ao serem lidos de volta para o VBA, além de testar o Debug.
 ' Parâmetros:  Nenhum
 ' ==========================================================================
@@ -174,7 +174,7 @@ End Sub
 
 ' ==========================================================================
 ' Rotina:      TestarControlesDeEstado
-' Descrição:   Demonstra verificações lógicas de ambiente baseadas na 
+' Descrição:   Demonstra verificações lógicas de ambiente baseadas na
 '              existência de variáveis, bem como o reset geral da consulta.
 ' Parâmetros:  Nenhum
 ' ==========================================================================
@@ -197,7 +197,7 @@ End Sub
 
 ' ==========================================================================
 ' Rotina:      TestarPerfisDeAmbiente
-' Descrição:   Testa os recursos de clonagem e sobrescrita de consultas, 
+' Descrição:   Testa os recursos de clonagem e sobrescrita de consultas,
 '              úteis para gerenciar diferentes perfis ou criar backups.
 ' Parâmetros:  Nenhum
 ' ==========================================================================
@@ -222,7 +222,7 @@ End Sub
 
 ' ==========================================================================
 ' Rotina:      TestarMotorRAD
-' Descrição:   Verifica a funcionalidade de exportar a consulta Power Query 
+' Descrição:   Verifica a funcionalidade de exportar a consulta Power Query
 '              como um arquivo de texto criptografado em Tags, e sua reimportação.
 ' Parâmetros:  Nenhum
 ' ==========================================================================
@@ -244,3 +244,93 @@ Sub TestarMotorRAD()
     ' Faz o parse das tags do arquivo exportado e gera/atualiza a estrutura de forma espelhada no Excel
     db.ImportarConsultaDeTXT caminhoBase & "Componente_Variaveis.txt", Sobrescrever:=True
 End Sub
+
+
+' ==========================================================================
+' Rotina:      TestarInjecaoTexto
+' Descrição:   Verifica a gravação de um texto bruto (HTML) passado via string
+'              diretamente para o Power Query, validando sua re-leitura.
+' Parâmetros:  Nenhum
+' ==========================================================================
+Sub TestarInjecaoTexto()
+    Dim db As New clsPQConfig
+    Dim htmlOriginal As String
+    Dim htmlLido As String
+    
+    ' Define o nome da consulta alvo
+    db.NomeConsulta = "App_HTML_Teste"
+    
+    ' 1. Cria uma string simulando um bloco HTML digitado na IDE
+    htmlOriginal = "<div class='container'>" & vbCrLf & _
+                   "    <h1>Bem-vindo ao OpenVBA-Web</h1>" & vbCrLf & _
+                   "    <button onclick='alert(""Sucesso!"")'>Clique Aqui</button>" & vbCrLf & _
+                   "</div>"
+                   
+    ' 2. GRAVAÇÃO: Salva no Power Query enviando pelo parâmetro TextoConteudo
+    db.SalvarTextoBruto TextoConteudo:=htmlOriginal
+    
+    ' 3. LEITURA: Puxa o código de volta já limpo (sem as aspas de escape do M)
+    htmlLido = db.LerTextoBruto()
+    
+    ' 4. Validação
+    If htmlOriginal = htmlLido Then
+        MsgBox "Teste de Injeção via String: SUCESSO!" & vbCrLf & vbCrLf & _
+               "O código foi salvo e recuperado do Power Query com integridade total.", vbInformation, "OpenVBA-Web"
+    Else
+        MsgBox "Teste falhou. O texto recuperado não é idêntico ao original.", vbCritical, "Erro de Integridade"
+    End If
+End Sub
+
+
+' ==========================================================================
+' Rotina:      TestarInjecaoArquivo
+' Descrição:   Abre um seletor de arquivos nativo (FileDialog) para o usuário
+'              escolher um arquivo físico, consome o conteúdo mapeando o fluxo
+'              através da classe configurada e valida a persistência na query.
+' Parâmetros:  Nenhum
+' ==========================================================================
+Sub TestarInjecaoArquivo()
+    Dim db As New clsPQConfig
+    Dim fd As FileDialog
+    Dim CaminhoArquivo As String
+    Dim htmlLido As String
+    
+    ' 1. Configura o estado da classe definindo a consulta alvo
+    db.NomeConsulta = "App_HTML_Arquivo"
+    
+    ' 2. Instancia e configura o Seletor de Arquivos do Office
+    Set fd = Application.FileDialog(msoFileDialogFilePicker)
+    With fd
+        .Title = "OpenVBA-Web: Selecione o arquivo para injetar no Power Query"
+        .AllowMultiSelect = False
+        .Filters.Clear
+        .Filters.Add "Arquivos OpenVBA-Web", "*.html; *.css; *.js", 1
+        .Filters.Add "Todos os Arquivos", "*.*", 2
+        
+        ' Verifica se o usuário selecionou algo ou cancelou a janela
+        If .Show = -1 Then
+            CaminhoArquivo = .SelectedItems(1)
+        Else
+            MsgBox "Operação cancelada. Nenhum arquivo foi selecionado.", vbExclamation, "OpenVBA-Web RAD"
+            Exit Sub
+        End If
+    End With
+    
+    ' 3. GRAVAÇÃO: A classe gerencia o arquivo apontado e injeta na query configurada
+    db.SalvarTextoBruto CaminhoArquivo:=CaminhoArquivo
+    
+    ' 4. LEITURA: Recupera o código armazenado para checar o parser de escape
+    htmlLido = db.LerTextoBruto()
+    
+    ' 5. Validação do sucesso do motor de arquivos
+    If htmlLido <> "" Then
+        MsgBox "Teste de Arquivo [" & db.NomeConsulta & "]: SUCESSO!" & vbCrLf & vbCrLf & _
+               "O arquivo selecionado (" & Dir(CaminhoArquivo) & ") foi processado e salvo com sucesso no Power Query.", vbInformation, "OpenVBA-Web"
+    Else
+        MsgBox "Ocorreu uma falha na extração ou gravação do arquivo.", vbCritical, "Erro"
+    End If
+    
+    Set fd = Nothing
+End Sub
+
+

@@ -523,7 +523,7 @@ End Function
 ' Parâmetros:  NomeConsulta (String) - A query alvo da extração.
 '              CaminhoArquivo (String) - Destino físico do arquivo .txt.
 ' ==========================================================================
-Public Sub ExportarConsultaParaTXT(ByVal NomeConsulta As String, ByVal CaminhoArquivo As String)
+Public Sub ExportarConsultaParaTXT(ByVal NomeConsulta As String, ByVal caminhoArquivo As String)
     Dim qry As WorkbookQuery
     Dim stream As Object
     Dim descCompleta As String, descParte As String, comoUsarParte As String
@@ -564,7 +564,7 @@ Public Sub ExportarConsultaParaTXT(ByVal NomeConsulta As String, ByVal CaminhoAr
     stream.Charset = "utf-8"
     stream.Open
     stream.WriteText conteudoTXT
-    stream.SaveToFile CaminhoArquivo, 2 ' adSaveCreateOverWrite
+    stream.SaveToFile caminhoArquivo, 2 ' adSaveCreateOverWrite
     stream.Close
 End Sub
 
@@ -575,7 +575,7 @@ End Sub
 ' Parâmetros:  CaminhoArquivo (String) - Caminho lógico do arquivo texto.
 '              Sobrescrever (Boolean) - Permissão para substituir consulta pré-existente.
 ' ==========================================================================
-Public Sub ImportarConsultaDeTXT(ByVal CaminhoArquivo As String, Optional ByVal Sobrescrever As Boolean = False)
+Public Sub ImportarConsultaDeTXT(ByVal caminhoArquivo As String, Optional ByVal Sobrescrever As Boolean = False)
     Dim stream As Object
     Dim conteudoTXT As String
     Dim strNome As String, strDesc As String, strComoUsar As String, strCodigoM As String
@@ -587,7 +587,7 @@ Public Sub ImportarConsultaDeTXT(ByVal CaminhoArquivo As String, Optional ByVal 
     stream.Type = 2
     stream.Charset = "utf-8"
     stream.Open
-    stream.LoadFromFile CaminhoArquivo
+    stream.LoadFromFile caminhoArquivo
     conteudoTXT = stream.ReadText
     stream.Close
     
@@ -628,6 +628,97 @@ Public Sub ImportarConsultaDeTXT(ByVal CaminhoArquivo As String, Optional ByVal 
 End Sub
 
 ' ==========================================================================
+' Rotina:      SalvarTextoBruto
+' Descrição:   Armazena um texto limpo (HTML, CSS, JS) diretamente na consulta atual.
+'              Pode receber o código via parâmetro ou ler direto de um arquivo físico.
+' Parâmetros:  TextoConteudo (String, Opcional) - O código em string a ser salvo.
+'              CaminhoArquivo (String, Opcional) - O diretório do arquivo físico.
+' ==========================================================================
+Public Sub SalvarTextoBruto(Optional ByVal TextoConteudo As String = "", Optional ByVal CaminhoArquivo As String = "")
+    Dim strM As String
+    Dim qry As WorkbookQuery
+    Dim conteudoFinal As String
+    Dim stream As Object
+    
+    ' 1. Valida se o nome da consulta foi definido antes de tentar salvar
+    If p_QueryName = "" Then
+        Err.Raise vbObjectError + 8, "clsPQConfig", "Defina o NomeConsulta antes de salvar."
+        Exit Sub
+    End If
+    
+    ' 2. Define a origem do texto: Arquivo físico ou String direta
+    If CaminhoArquivo <> "" Then
+        ' Usa ADODB.Stream para garantir a leitura perfeita em UTF-8
+        On Error Resume Next
+        Set stream = CreateObject("ADODB.Stream")
+        stream.Type = 2 ' adTypeText
+        stream.Charset = "utf-8"
+        stream.Open
+        stream.LoadFromFile CaminhoArquivo
+        
+        If Err.Number <> 0 Then
+            Err.Raise vbObjectError + 6, "clsPQConfig", "Não foi possível ler o arquivo: " & CaminhoArquivo
+            Exit Sub
+        End If
+        On Error GoTo 0
+        
+        conteudoFinal = stream.ReadText
+        stream.Close
+    ElseIf TextoConteudo <> "" Then
+        conteudoFinal = TextoConteudo
+    Else
+        Err.Raise vbObjectError + 7, "clsPQConfig", "Forneça o TextoConteudo ou o CaminhoArquivo para salvar."
+        Exit Sub
+    End If
+    
+    ' 3. Prepara a string para o padrão estrito do Power Query
+    strM = """" & Replace(conteudoFinal, """", """""") & """"
+    
+    ' 4. Valida se a consulta já existe para criar ou atualizar
+    On Error Resume Next
+    Set qry = p_wb.Queries(p_QueryName)
+    On Error GoTo 0
+    
+    If Not qry Is Nothing Then
+        qry.Formula = strM
+    Else
+        p_wb.Queries.Add Name:=p_QueryName, Formula:=strM
+    End If
+End Sub
+
+' ==========================================================================
+' Função:      LerTextoBruto
+' Descrição:   Extrai o texto puro armazenado na consulta atual, removendo
+'              o encapsulamento e o escape de aspas duplas do código M.
+' Parâmetros:  Nenhum.
+' Retorno:     String - O código limpo original (HTML/CSS/JS/etc).
+' ==========================================================================
+Public Function LerTextoBruto() As String
+    Dim strM As String
+    Dim qry As WorkbookQuery
+    
+    On Error Resume Next
+    Set qry = p_wb.Queries(p_QueryName)
+    On Error GoTo 0
+    
+    If Not qry Is Nothing Then
+        strM = qry.Formula
+        
+        ' Verifica se o texto está encapsulado entre aspas do formato M
+        If Left(strM, 1) = """" And Right(strM, 1) = """" Then
+            ' Remove a primeira e a última aspa
+            strM = Mid(strM, 2, Len(strM) - 2)
+        End If
+        
+        ' Desfaz o escape de aspas duplas exigido pelo Power Query
+        LerTextoBruto = Replace(strM, """""", """")
+    Else
+        ' Retorna vazio caso a consulta não seja encontrada
+        LerTextoBruto = ""
+    End If
+End Function
+
+' ==========================================================================
 ' Função:      ExtrairTag (Private)
 ' Descrição:   Interpreta a sintaxe similar a XML gerada pela classe para
 '              isolar o conteúdo encapsulado entre duas tags específicas.
@@ -654,3 +745,4 @@ Private Function ExtrairTag(ByVal Texto As String, ByVal TagName As String) As S
     
     Set regex = Nothing
 End Function
+
