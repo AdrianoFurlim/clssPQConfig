@@ -221,7 +221,7 @@ Public Function ListarTodas(Optional ByVal DebugMode As Boolean = False) As Obje
     
     If regex.Test(apenasLet) Then
         Set matches = regex.Execute(apenasLet)
-        If DebugMode Then Debug.Print "--- VARIÁVEIS NO POWER QUERY [" & p_QueryName & "] ---"
+        If DebugMode Then Debug.Print "--- VARIÃVEIS NO POWER QUERY [" & p_QueryName & "] ---"
         
         ' Varre todas as correspondências e converte os tipos de M para VBA
         For Each match In matches
@@ -372,7 +372,7 @@ Public Function Clonar(ByVal NomeOrigem As String, ByVal NomeNovo As String, Opt
             qryDestino.Formula = codigoM
             Clonar = True
         Else
-            Err.Raise vbObjectError + 2, "clsPQConfig", "A consulta '" & NomeNovo & "' já existe. Use Sobrescrever:=True."
+            Err.Raise vbObjectError + 2, "clsPQConfig", "A consulta '" & NomeNovo & "' jÃ¡ existe. Use Sobrescrever:=True."
             Clonar = False
         End If
     Else
@@ -523,7 +523,7 @@ End Function
 ' Parâmetros:  NomeConsulta (String) - A query alvo da extração.
 '              CaminhoArquivo (String) - Destino físico do arquivo .txt.
 ' ==========================================================================
-Public Sub ExportarConsultaParaTXT(ByVal NomeConsulta As String, ByVal caminhoArquivo As String)
+Public Sub ExportarConsultaParaTXT(ByVal NomeConsulta As String, ByVal CaminhoArquivo As String)
     Dim qry As WorkbookQuery
     Dim stream As Object
     Dim descCompleta As String, descParte As String, comoUsarParte As String
@@ -536,7 +536,7 @@ Public Sub ExportarConsultaParaTXT(ByVal NomeConsulta As String, ByVal caminhoAr
     On Error GoTo 0
     
     If qry Is Nothing Then
-        Err.Raise vbObjectError + 3, "clsPQConfig", "A consulta '" & NomeConsulta & "' não existe."
+        Err.Raise vbObjectError + 3, "clsPQConfig", "A consulta '" & NomeConsulta & "' nÃ£o existe."
         Exit Sub
     End If
     
@@ -564,7 +564,7 @@ Public Sub ExportarConsultaParaTXT(ByVal NomeConsulta As String, ByVal caminhoAr
     stream.Charset = "utf-8"
     stream.Open
     stream.WriteText conteudoTXT
-    stream.SaveToFile caminhoArquivo, 2 ' adSaveCreateOverWrite
+    stream.SaveToFile CaminhoArquivo, 2 ' adSaveCreateOverWrite
     stream.Close
 End Sub
 
@@ -575,7 +575,7 @@ End Sub
 ' Parâmetros:  CaminhoArquivo (String) - Caminho lógico do arquivo texto.
 '              Sobrescrever (Boolean) - Permissão para substituir consulta pré-existente.
 ' ==========================================================================
-Public Sub ImportarConsultaDeTXT(ByVal caminhoArquivo As String, Optional ByVal Sobrescrever As Boolean = False)
+Public Sub ImportarConsultaDeTXT(ByVal CaminhoArquivo As String, Optional ByVal Sobrescrever As Boolean = False)
     Dim stream As Object
     Dim conteudoTXT As String
     Dim strNome As String, strDesc As String, strComoUsar As String, strCodigoM As String
@@ -587,7 +587,7 @@ Public Sub ImportarConsultaDeTXT(ByVal caminhoArquivo As String, Optional ByVal 
     stream.Type = 2
     stream.Charset = "utf-8"
     stream.Open
-    stream.LoadFromFile caminhoArquivo
+    stream.LoadFromFile CaminhoArquivo
     conteudoTXT = stream.ReadText
     stream.Close
     
@@ -599,7 +599,7 @@ Public Sub ImportarConsultaDeTXT(ByVal caminhoArquivo As String, Optional ByVal 
     
     ' Validação de segurança do pacote lido
     If strNome = "" Or strCodigoM = "" Then
-        Err.Raise vbObjectError + 4, "clsPQConfig", "Arquivo corrompido ou fora do padrão RAD."
+        Err.Raise vbObjectError + 4, "clsPQConfig", "Arquivo corrompido ou fora do padrÃ£o RAD."
         Exit Sub
     End If
     
@@ -619,12 +619,54 @@ Public Sub ImportarConsultaDeTXT(ByVal caminhoArquivo As String, Optional ByVal 
             qry.Formula = strCodigoM
             qry.Description = descFinal
         Else
-            Err.Raise vbObjectError + 5, "clsPQConfig", "O componente '" & strNome & "' já existe. Use Sobrescrever:=True."
+            Err.Raise vbObjectError + 5, "clsPQConfig", "O componente '" & strNome & "' jÃ¡ existe. Use Sobrescrever:=True."
         End If
     Else
         ' Injeta o nome, o código M e os metadados simultaneamente em uma nova consulta!
         Set qry = p_wb.Queries.Add(Name:=strNome, Formula:=strCodigoM, Description:=descFinal)
     End If
+End Sub
+
+' ==========================================================================
+' Rotina:      SincronizarArquivo
+' Descrição:   Sincroniza um arquivo UTF-8 com uma consulta do Power Query
+'              somente quando o conteúdo local tiver sido alterado.
+' Parâmetros:  CaminhoArquivo (String) - Caminho físico do arquivo local.
+'              NomeConsulta (String) - Nome da consulta a ser sincronizada.
+' ==========================================================================
+Public Sub SincronizarArquivo(ByVal CaminhoArquivo As String, ByVal NomeConsulta As String)
+    Dim stream As Object
+    Dim textoLocal As String
+    Dim textoPQ As String
+
+    On Error GoTo FalhaSilenciosa
+    If Dir$(CaminhoArquivo) = "" Then Exit Sub
+
+    Set stream = CreateObject("ADODB.Stream")
+    stream.Type = 2 ' adTypeText
+    stream.Charset = "utf-8"
+    stream.Open
+    stream.LoadFromFile CaminhoArquivo
+    textoLocal = stream.ReadText
+    stream.Close
+    Set stream = Nothing
+
+    Me.NomeConsulta = NomeConsulta
+    textoPQ = Me.LerTextoBruto()
+
+    If textoLocal <> textoPQ Then
+        Me.SalvarTextoBruto TextoConteudo:=textoLocal
+    End If
+
+    Exit Sub
+
+FalhaSilenciosa:
+    On Error Resume Next
+    If Not stream Is Nothing Then
+        If stream.State <> 0 Then stream.Close
+    End If
+    Set stream = Nothing
+    On Error GoTo 0
 End Sub
 
 ' ==========================================================================
@@ -657,7 +699,7 @@ Public Sub SalvarTextoBruto(Optional ByVal TextoConteudo As String = "", Optiona
         stream.LoadFromFile CaminhoArquivo
         
         If Err.Number <> 0 Then
-            Err.Raise vbObjectError + 6, "clsPQConfig", "Não foi possível ler o arquivo: " & CaminhoArquivo
+            Err.Raise vbObjectError + 6, "clsPQConfig", "NÃ£o foi possÃ­vel ler o arquivo: " & CaminhoArquivo
             Exit Sub
         End If
         On Error GoTo 0
@@ -667,7 +709,7 @@ Public Sub SalvarTextoBruto(Optional ByVal TextoConteudo As String = "", Optiona
     ElseIf TextoConteudo <> "" Then
         conteudoFinal = TextoConteudo
     Else
-        Err.Raise vbObjectError + 7, "clsPQConfig", "Forneça o TextoConteudo ou o CaminhoArquivo para salvar."
+        Err.Raise vbObjectError + 7, "clsPQConfig", "ForneÃ§a o TextoConteudo ou o CaminhoArquivo para salvar."
         Exit Sub
     End If
     
